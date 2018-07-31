@@ -1,0 +1,9 @@
+.idea
+.vscode
+*.jpg
+*.png
+*.jpeg
+*.pyc
+__pycache__
+migrations
+.git
