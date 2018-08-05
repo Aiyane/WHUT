@@ -8,12 +8,22 @@ from rest_framework.permissions import IsAuthenticated
 from django.views.generic.base import View
 from django.contrib.auth import get_user_model
 from django.shortcuts import render
+from django.contrib.auth.hashers import make_password
+from django.http import HttpResponse, HttpResponseRedirect
+from rest_framework.pagination import PageNumberPagination
+import json
+# from rest_framework.views import APIView
+# from django.http import StreamingHttpResponse
 
-from .serializer import (LikeSerializer, DownloadSerializer, FollowSerializer, CollectSerializer,
-                         LikeListSerializer, DownloadListSerializer, FollowListSerializer, FanListSerializer)
-from .models import LikeShip, Follow, UserFolderImage, DownloadShip
+from .serializer import (LikeSerializer, FollowSerializer, CollectSerializer, DownloadSerializer, CommentLikeSerialzer,
+                         LikeListSerializer, DownloadListSerializer, FollowListSerializer, FanListSerializer,
+                         ApplicationListSerializer, ApplicationCreateSerializer, ApplicationUpdateSerializer)
+from .models import LikeShip, Follow, UserFolderImage, DownloadShip, CommentLike, Application
+# from images.models import ImageModel
 from users.models import EmailVerifyRecord, UserMessage
+from images.models import ImageModel
 from utils.send_email import send_register_email
+# from utils.read_file import readFile
 
 User = get_user_model()
 
@@ -102,6 +112,20 @@ class FollowViewset(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.
         return Follow.objects.filter(fan=self.request.user)
 
 
+class DownloadPagination(PageNumberPagination):
+    """
+    图片分页
+    page_size: 每页大小
+    page_size_query_param: 每页大小参数名
+    page_query_param: 第几页参数名
+    max_page_size: 最大页数
+    """
+    page_size = 8
+    page_size_query_param = 'num'
+    page_query_param = "page"
+    max_page_size = 100
+
+
 class DownloadViewset(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
     """
     create:
@@ -110,6 +134,7 @@ class DownloadViewset(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.G
         获取用户下载图片
     """
     serializer_class = DownloadSerializer
+    pagination_class = DownloadPagination
     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
     permission_classes = (IsAuthenticated,)
 
@@ -137,72 +162,224 @@ class DownloadViewset(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.G
         return serializer.save()
 
 
+class CommentLikeViewset(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet):
+    """
+    create:
+        添加点赞评论
+    destroy:
+        取消点赞评论
+    """
+    serializer_class = CommentLikeSerialzer
+    authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        return CommentLike.objects.filter(user=self.request.user)
+
+
+class ApplicationViewset(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
+    """
+    list:
+        获取个人签约状态
+    create:
+        添加签约申请
+    update:
+        修改申请状态
+    """
+    serializer_class = ApplicationListSerializer
+    authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
+    permission_classes = (IsAuthenticated,)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        if serializer.data:
+            serializer.data[0]['status'] = int(serializer.data[0]['status'])
+            return Response(serializer.data[0])
+        return Response({"status": 0})
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        if instance.status != '1':
+            return Response({"error": "没有同意合约"}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+
+        serializer.data['status'] = int(serializer.data['status'])
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        ship = self.perform_create(serializer)
+        ship.status = '1'
+        ship.save()
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def perform_create(self, serializer):
+        return serializer.save()
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ApplicationListSerializer
+        elif self.action == 'create':
+            return ApplicationCreateSerializer
+        return ApplicationUpdateSerializer
+
+    def get_queryset(self):
+        return Application.objects.filter(user=self.request.user)
+
+# 以数据流的形式返回
+# class DownloadImageViewset(APIView):
+#     """
+#     list:
+#         下载原图
+#     """
+#     # serializer_class = DownloadSerializer
+#     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
+#     permission_classes = (IsAuthenticated,)
+#
+#     def get(self, request, *args, **kwargs):
+#         image_id = int(request.GET.get("image"))
+#         if not image_id:
+#             response = Response({"error": "参数错误"})
+#             response.status_code = 400
+#             return response
+#         image = ImageModel.objects.get(id=image_id)
+#         if not image.if_active:
+#             response = Response({"error": "图片未审查"})
+#             response.status_code = 404
+#             return response
+#
+#         DownloadShip(user=request.user, image=image).save()
+#
+#         the_file_name = image.image.url
+#         filename = 'D:/code/Project/TS_WHUT' + image.image.url
+#         response = StreamingHttpResponse(readFile(filename))
+#         response['Content-Type'] = 'application/octet-stream'
+#         response['Content-Disposition'] = 'attachment;filename="{0}"'.format(the_file_name)
+#         return response
+
+
 class ActiveUserView(View):
     """
-    用户激活
+    注册用户激活
     """
     def get(self, request, active_code):
         all_records = EmailVerifyRecord.objects.filter(code=active_code)
         if all_records:
             for record in all_records:
-                email = record.send_email
                 # 得到一个用户信息邮箱与传来的邮箱验证邮箱相同的用户信息实例
-                user = User.objects.get(email=email)
-                user.if_active = True
-                user.save()
-            # 验证成功, 返回主页
-            return render(request, 'index.html')
+                user = User.objects.get(email=record.send_email)
+                if not user.if_active:
+                    user.if_active = True
+                    user.save()
+                    record.delete()
+                    return render(request, 'index.html')
+        return render(request, "active_fail.html", {"error": "激活失败: 激活链接失效!"})
 
 
-class ResetView(View):
+class ForgetView(View):
     def post(self, request):
         """
-        忘记密码
+        点击忘记密码后前端会有一个忘记密码的界面,
+        然后用户会填写邮箱,
+        给用户发送验证邮箱, 等待用户确认邮箱
         """
-        email = request.POST.get("email", "")
+        email = request.POST.get("email")
         if not email:
-            response = Response({"non_field_errors": ["参数错误"]})
-            response.status_code = 400
-            return response
-        user = User.objects.filter(email=email)[0]
-        if user and user.email == email:
-            # 保存用户信息
-            user_message = UserMessage()
-            user_message.user = user
-            user_message.message = "图说理工网修改密码"
-            user_message.save()
-
-            send_register_email(email, "forget")  # 发送验证邮箱
-            return Response(status.HTTP_201_CREATED)
-        else:
-            response = Response({"non_field_errors": ["没有该用户"]})
-            response.status_code = 404
-            return response
+            return HttpResponse(json.dumps({"error": "参数错误"}), content_type="application/json")
+        users = User.objects.filter(email=email)
+        if not users.count():
+            return HttpResponse(json.dumps({"error": "邮箱错误"}), content_type="application/json")
+        user = users[0]
+        # 保存用户信息
+        user_message = UserMessage()
+        user_message.user = user
+        user_message.message = "图说理工网修改密码"
+        user_message.save()
+        # 发送邮件
+        send_register_email(email, "forget")
+        return HttpResponse(json.dumps({"msg": "请前往邮箱验证"}), content_type="application/json")
 
 
 class ResetPwdView(View):
     def get(self, request, active_code):
-        all_records = EmailVerifyRecord.objects.filter(code=active_code)  # 这里的all_records是多个邮箱验证实例，因为验证码可能相同
-        if all_records:
+        """
+        从忘记密码的验证邮箱点击进入这里,
+        用户不用输入用户名或邮箱, 这里直接得到用户的信息,
+        界面里用户可以直接输入新密码
+        """
+        all_records = EmailVerifyRecord.objects.filter(code=active_code)
+        if all_records.count():
             for record in all_records:
                 email = record.send_email
-                user = User.objects.get(email=email)  # 得到一个用户信息邮箱与传来的邮箱验证邮箱相同的用户信息实例
-                return render(request, "password_reset.html", {"user": user})
-        else:
-            return render(request, "active_fail.html")
+                user = User.objects.get(email=email)
+                record.delete()
+                return render(request, "password_reset.html", {"id": str(user.id)})
+
+        # return render(request, "password_reset.html", {"id": 1})
+        # 邮箱填写错误, 不能修改密码
+        return render(request, "active_fail.html", {"error": "邮箱错误: 没有该邮箱用户!"})
 
 
 class ChangePasswordView(View):
     def post(self, request):
-        password = request.POST.get("password")
-        username = request.POST.get("username")
-        users = User.objects.filter(username=username)
-        if users:
-            user = users[0]
-            user.password = password
+        """
+        由修改密码的面发送POST请求过来
+        返回json判断是否修改成功
+        """
+        password1 = request.POST.get("password1")
+        password2 = request.POST.get("password2")
+        user_id = request.POST.get("id")
+        if not user_id:
+            return render(request, "active_fail.html", {"error": "验证错误: 页面已失效!"})
+        user = User.objects.filter(id=int(user_id))[0]
+        if len(password1) < 6 or password1 != password2:
+            return render(request, "password_reset.html", {"id": str(user.id), "error": "密码不一致!"})
+        user.password = make_password(password1)
+        user.save()
+        return render(request, "password_reset.html", {"msg": "修改成功!"})
+
+
+class UserImageView(View):
+    def get(self, request, user_id):
+        if request.user.is_authenticated and request.user.is_staff:
+            images = ImageModel.objects.filter(user_id=user_id)
+            target_user = User.objects.get(id=user_id)
+            return render(request, 'images.html', {
+                "user": target_user,
+                "images": images,
+            })
+
+
+class CheckView(View):
+    def post(self, request):
+        res = request.POST.get('radio')
+        user_id = request.POST.get('user')
+        ship = Application.objects.get(user_id=int(user_id))
+        if res:
+            if res == 'n':
+                ship.status = 4
+            elif res == 'y':
+                ship.status = 3
+            ship.save()
+            # 很奇怪, 信号量没有起作用, 所以在这里直接改
+            user = ship.user
+            user.if_sign = True
             user.save()
-            # 修改成功提示去登录
-            pass
-        else:
-            # 失败
-            pass
+            return HttpResponseRedirect('/admin/')

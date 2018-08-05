@@ -11,6 +11,7 @@ from rest_framework_jwt.settings import api_settings
 from rest_framework import status
 from rest_framework.response import Response
 from datetime import datetime
+from django.contrib.auth.hashers import make_password
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .serializer import (FolderCreateSerializer, FolderListSerializer, FolderOneSerializer, FolderUpdateSerializer,
@@ -22,32 +23,32 @@ from .filters import UsersFilter
 User = get_user_model()
 
 
-class Login(ObtainJSONWebToken):
-    """
-    重载ObtainJSONWebToken的post方法, 使得未激活用户无法登录
-    """
-    def post(self, request, *args, **kwargs):
-        jwt_response_payload_handler = api_settings.JWT_RESPONSE_PAYLOAD_HANDLER
-        serializer = self.get_serializer(data=request.data)
-
-        if serializer.is_valid():
-            user = serializer.object.get('user') or request.user
-            if not user.if_active:
-                return Response({"non_field_errors": ["用户未激活"]}, status=status.HTTP_400_BAD_REQUEST)
-
-            token = serializer.object.get('token')
-            response_data = jwt_response_payload_handler(token, user, request)
-            response = Response(response_data)
-            if api_settings.JWT_AUTH_COOKIE:
-                expiration = (datetime.utcnow() +
-                              api_settings.JWT_EXPIRATION_DELTA)
-                response.set_cookie(api_settings.JWT_AUTH_COOKIE,
-                                    token,
-                                    expires=expiration,
-                                    httponly=True)
-            return response
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# class Login(ObtainJSONWebToken):
+#     """
+#     重载ObtainJSONWebToken的post方法, 使得未激活用户无法登录
+#     """
+#     def post(self, request, *args, **kwargs):
+#         jwt_response_payload_handler = api_settings.JWT_RESPONSE_PAYLOAD_HANDLER
+#         serializer = self.get_serializer(data=request.data)
+#
+#         if serializer.is_valid():
+#             user = serializer.object.get('user') or request.user
+#             if not user.if_active:
+#                 return Response({"non_field_errors": ["用户未激活"]}, status=status.HTTP_400_BAD_REQUEST)
+#
+#             token = serializer.object.get('token')
+#             response_data = jwt_response_payload_handler(token, user, request)
+#             response = Response(response_data)
+#             if api_settings.JWT_AUTH_COOKIE:
+#                 expiration = (datetime.utcnow() +
+#                               api_settings.JWT_EXPIRATION_DELTA)
+#                 response.set_cookie(api_settings.JWT_AUTH_COOKIE,
+#                                     token,
+#                                     expires=expiration,
+#                                     httponly=True)
+#             return response
+#
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class FolderViewset(viewsets.ModelViewSet):
@@ -108,7 +109,7 @@ class UserViewset(viewsets.ModelViewSet):
         删除用户
     """
     serializer_class = UserListSerializer
-    queryset = User.objects.filter(if_active=True)
+    queryset = User.objects.filter(is_active=True)
     pagination_class = UserPagination
     filter_backends = (filters.OrderingFilter, DjangoFilterBackend)
     filter_class = UsersFilter
@@ -120,7 +121,7 @@ class UserViewset(viewsets.ModelViewSet):
             return User.objects.filter(id=self.request.user.id)
         elif self.action == 'update':
             return User.objects.filter(id=self.request.user.id)
-        return User.objects.filter(if_active=True)
+        return User.objects.filter(is_active=True)
 
     def get_permissions(self):
         if self.action == "create":
@@ -133,13 +134,17 @@ class UserViewset(viewsets.ModelViewSet):
         elif self.action == 'create':
             return UserCreateSerializer
         elif self.action == 'update':
-            return UserCreateSerializer
+            return UserUpdateSerializer
         return UserListSerializer
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = self.perform_create(serializer)
+        pwd = make_password(user.password)
+        user.password = pwd
+        user.is_active = False
+        user.save()
         headers = self.get_success_headers(serializer.data)
 
         # 写入欢迎注册消息
@@ -163,13 +168,13 @@ class UserViewset(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         user = self.perform_update(serializer)
 
-        if not user.if_active:
+        if not user.is_active:
             user_message = UserMessage()
             user_message.user = user
             user_message.message = "图说理工网-验证个人信息修改"
             user_message.save()
             # 发送验证邮箱
-            send_register_email(user.email, "update_email")
+            send_register_email(user.email, "register")
 
         if getattr(instance, '_prefetched_objects_cache', None):
             # If 'prefetch_related' has been applied to a queryset, we need to

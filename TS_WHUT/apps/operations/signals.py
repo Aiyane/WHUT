@@ -1,6 +1,54 @@
-from django.db.models.signals import post_save, pre_delete
+from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
-from .models import LikeShip, DownloadShip, Follow, UserFolderImage
+from .models import LikeShip, DownloadShip, Follow, UserFolderImage, CommentLike, Application
+
+
+@receiver(pre_save, sender=Application)
+def add_url(sender, instance=None, created=False, **kwargs):
+    """
+    签约前
+    """
+    if instance.status == '2':
+        instance.url = 'http://192.168.1.101:8000/user_image/' + str(instance.user.id) + '/'
+
+
+@receiver(post_save, sender=Application)
+def change_if_sign(sender, instance=None, created=False, **kwargs):
+    """
+    当签约动作完成
+    """
+    if instance.status == '3':
+        # 用户状态改成已签约, 结束等待
+        user = instance.user
+        user.if_sign = True
+        user.save()
+    else:
+        user = instance.user
+        user.if_sign = False
+        user.save()
+
+
+@receiver(post_save, sender=CommentLike)
+def create_comment_like_num(sender, instance=None, created=False, **kwargs):
+    """
+    当点赞图片动作发生
+    """
+    if created:
+        # 评论点赞数加1
+        comment = instance.comment
+        comment.like += 1
+        comment.save()
+
+
+@receiver(pre_delete, sender=CommentLike)
+def delete_collect_num(sender, instance=None, **kwargs):
+    """
+    当取消点赞图片动作发生
+    """
+    # 评论点赞数减1
+    comment = instance.comment
+    comment.like -= 1
+    comment.save()
 
 
 @receiver(post_save, sender=UserFolderImage)
@@ -107,7 +155,7 @@ def delete_like_num(sender, instance=None, **kwargs):
 @receiver(post_save, sender=DownloadShip)
 def create_download_num(sender, instance=None, created=False, **kwargs):
     """
-    当关注点赞图片动作发生
+    当下载图片动作发生
     """
     if created:
         # 图片下载量加1

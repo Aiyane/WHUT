@@ -160,11 +160,21 @@ class FilterPlugin(BaseAdminPlugin):
             if isinstance(queryset, models.query.QuerySet) and lookup_params:
                 new_lookup_parames = dict()
                 for k, v in lookup_params.items():
-                    list_v = v.split(',')
-                    if len(list_v) > 0:
-                        new_lookup_parames.update({k: list_v})
-                    else:
+                    # 修复bool值bug, 单值bug
+                    if v == 'True':
+                        new_lookup_parames.update({k: True})
+                    elif v == 'False':
+                        new_lookup_parames.update({k: False})
+                    elif isinstance(v, bool):
                         new_lookup_parames.update({k: v})
+                    else:
+                        list_v = v.split(',')
+                        if len(list_v) == 1:
+                            new_lookup_parames.update({k: list_v[0]})
+                        elif len(list_v) > 1:
+                            new_lookup_parames.update({k: list_v})
+                        else:
+                            new_lookup_parames.update({k: v})
                 queryset = queryset.filter(**new_lookup_parames)
         except (SuspiciousOperation, ImproperlyConfigured):
             raise

@@ -7,9 +7,9 @@ from rest_framework import permissions
 from rest_framework import authentication
 from rest_framework_jwt.authentication import JSONWebTokenAuthentication
 
-from .models import ImageModel, BannerModel
-from .serializer import ImageSerializer, ImageCreateSerializer, BannerSerializer
-from .filters import ImageFilter
+from .models import ImageModel, BannerModel, Comment
+from .serializer import ImageSerializer, ImageCreateSerializer, BannerSerializer, CommentListSerializer, CommentCreateSerializer
+from .filters import ImageFilter, CommentFilter
 
 
 class ImagePagination(PageNumberPagination):
@@ -20,7 +20,7 @@ class ImagePagination(PageNumberPagination):
     page_query_param: 第几页参数名
     max_page_size: 最大页数
     """
-    page_size = 16
+    page_size = 8
     page_size_query_param = 'num'
     page_query_param = "page"
     max_page_size = 100
@@ -47,9 +47,7 @@ class ImageViewset(mixins.ListModelMixin,
     filter_class = ImageFilter
     search_fields = ('cates', 'name', 'desc')
     authentication_classes = (JSONWebTokenAuthentication, authentication.SessionAuthentication)
-
-    def get_permissions(self):
-        return [permissions.IsAuthenticated()]
+    permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
         # 删除只能是上传者
@@ -75,3 +73,23 @@ class ImageViewset(mixins.ListModelMixin,
 class BannerViewset(mixins.ListModelMixin, viewsets.GenericViewSet):
     queryset = BannerModel.objects.filter(if_show=True)
     serializer_class = BannerSerializer
+
+
+class CommentViewset(mixins.ListModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet):
+    """
+    list:
+        列出单张图片的全部评论
+    create:
+        添加评论
+    """
+    queryset = Comment.objects.all()
+    serializer_class = CommentListSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filter_class = CommentFilter
+    authentication_classes = (JSONWebTokenAuthentication, authentication.SessionAuthentication)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return CommentListSerializer
+        return CommentCreateSerializer

@@ -27,13 +27,13 @@ class BannerModel(models.Model):
 
 class ImageModel(models.Model):
     # 图片
-    image = ThumbnailerImageField(upload_to="images/%Y/%m", storage=ImageStorage(),
-                                  verbose_name="图片", max_length=100, null=True, blank=True)
+    image = ThumbnailerImageField(upload_to="images/%Y/%m", storage=ImageStorage(), blank=True,
+                                  verbose_name="图片", max_length=100)
     add_time = models.DateField(default=datetime.now, verbose_name="添加时间")
     if_active = models.BooleanField(default=False, verbose_name="是否通过审核")
     desc = models.CharField(max_length=200, verbose_name="描述", null=True, blank=True)
     user = models.ForeignKey(User, models.SET_NULL, null=True, verbose_name="上传人")
-    pattern = models.CharField(max_length=10, verbose_name="格式", default="png")
+    pattern = models.CharField(max_length=10, verbose_name="格式", default="jpeg")
     like_nums = models.IntegerField(default=0, verbose_name="点赞数")
     cates = models.CharField(max_length=200, verbose_name="种类字符串", default="")
     collection_nums = models.IntegerField(default=0, verbose_name="收藏数")
@@ -67,7 +67,7 @@ class Comment(models.Model):
     image = models.ForeignKey(ImageModel, on_delete=models.CASCADE, verbose_name="图片")
     add_time = models.DateField(default=datetime.now, verbose_name="添加时间")
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="用户", related_name="speaker")
-    reply = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="回复人", related_name="listen")
+    reply = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="回复人", related_name="listen")
     content = models.CharField(max_length=200, verbose_name="评论")
     like = models.IntegerField(default=0, verbose_name="点赞数")
 

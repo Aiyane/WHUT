@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 
-from .models import LikeShip, DownloadShip, Follow, UserFolderImage
+from .models import LikeShip, DownloadShip, Follow, UserFolderImage, CommentLike, Application
 from images.serializer import ImageSerializer
 from images.serializer import UserBrifSerializer
 
@@ -107,3 +107,57 @@ class FanListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
         fields = ('fan', 'id')
+
+
+class CommentLikeSerialzer(serializers.ModelSerializer):
+    def validate(self, attrs):
+        if attrs.get('user'):
+            return attrs
+        raise serializers.ValidationError('参数错误')
+
+    class Meta:
+        model = CommentLike
+        fields = ('user', 'comment', 'id')
+
+
+class ApplicationListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Application
+        fields = ('user', 'status', 'id')
+
+
+class ApplicationCreateSerializer(serializers.ModelSerializer):
+    validators = [
+        UniqueTogetherValidator(
+            queryset=Application.objects.all(),
+            fields=('user',),
+            message="已经申请"
+        )
+    ]
+
+    class Meta:
+        model = Application
+        fields = ('user', 'id')
+
+
+class ApplicationUpdateSerializer(serializers.ModelSerializer):
+    def validate(self, attrs):
+        name = self.initial_data.get('name')
+        p_class = self.initial_data.get('p_class')
+        mobile = self.initial_data.get('mobile')
+        qq = self.initial_data.get('qq')
+        id_card = self.initial_data.get('id_card')
+        user = self.context['request'].user
+        if not (name and p_class and mobile and qq and id_card):
+            raise serializers.ValidationError('参数错误')
+        user.real_name = name
+        user.p_class = p_class
+        user.mobile = mobile
+        user.qq = qq
+        user.id_card = id_card
+        user.save()
+        return attrs
+
+    class Meta:
+        model = Application
+        fields = ('status', 'id')
