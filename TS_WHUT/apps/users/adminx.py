@@ -2,8 +2,7 @@ import xadmin
 from xadmin import views
 from xadmin.layout import Main, Fieldset, Row, Side
 
-from .models import UserProfile, EmailVerifyRecord, Folder, UserMessage
-from images.models import ImageModel
+from .models import UserProfile, EmailVerifyRecord, Folder, UserMessage, Org
 
 
 @xadmin.sites.register(views.website.IndexView)
@@ -13,12 +12,14 @@ class MainDashboard(object):
             {"type": "html", "title": "欢迎面板",
              "content": "<h3> 欢迎来到图说理工后台! </h3><p>有问题请联系: <br/>张志强QQ : 2310091880</p>"},
             {"type": "qbutton", "title": "快速开始",
-             "btns": [{"title": "上传图片", "url": 'http://192.168.1.101:8000/admin/images/imagemodel/add/'},
-                      {"title": "新建用户", "url": 'http://192.168.1.101:8000/admin/users/userprofile/add/'}]},
+             "btns": [{"title": "上传图片", "url": '/admin/images/imagemodel/add/'},
+                      {"title": "新建用户", "url": '/admin/users/userprofile/add/'}]},
+            {"type": "list", "model": "images.ImageModel", "title": "等待审核图片", "params": {"_p_if_active": False}},
         ],
         [
             {"type": "list", "model": "operations.Application", "title": "等待审核用户", "params": {"_p_status": 2}},
-            {"type": "list", "model": "images.ImageModel", "title": "等待审核图片", "params": {"_p_if_active": False}},
+            {"type": "list", "model": "users.Org", "title": "等待认证机构", "params": {"_p_status": 1}},
+            {"type": "list", "model": "operations.Report", "title": "等待审查举报", "params": {"_p_status": 1}},
         ]
     ]
 
@@ -43,6 +44,7 @@ class UserProfileAdmin(object):
     model_icon = 'fa fa-user-o'
     readonly_fields = ('follow_nums', 'fan_nums', 'upload_nums', 'like_nums',
                        'collection_nums', 'download_nums', 'add_time', 'password')
+    relfield_style = 'fk-ajax'
     form_layout = (
         Main(
             Fieldset('',
@@ -93,6 +95,21 @@ class FolderAdmin(object):
     list_filter = ('user', 'add_time')
     model_icon = 'fa fa-folder-o'
     readonly_fields = ('user', 'nums', 'add_time')
+    relfield_style = 'fk-ajax'
+
+    def get_readonly_fields(self):
+        if self.user.is_superuser:
+            self.readonly_fields = []
+        return self.readonly_fields
+
+
+class OrgAdmin(object):
+    list_display = ('name', 'status', 'user', 'teacher', 'add_time')
+    search_fields = ('name', 'teacher')
+    list_filter = ('name', 'add_time', 'status')
+    readonly_fields = ('add_time', 'user')
+    relfield_style = 'fk-ajax'
+    model_icon = 'fa fa-sitemap'
 
     def get_readonly_fields(self):
         if self.user.is_superuser:
@@ -132,3 +149,4 @@ xadmin.site.register(UserProfile, UserProfileAdmin)
 xadmin.site.register(EmailVerifyRecord, EmailVerifyRecordAdmin)
 xadmin.site.register(Folder, FolderAdmin)
 xadmin.site.register(UserMessage, UserMessageAdmin)
+xadmin.site.register(Org, OrgAdmin)

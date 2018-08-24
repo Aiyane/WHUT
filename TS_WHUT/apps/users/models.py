@@ -2,7 +2,7 @@ from datetime import datetime
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
-from utils.storage import ImageStorage
+from my_utils.storage import ImageStorage
 
 
 class UserProfile(AbstractUser):
@@ -25,6 +25,8 @@ class UserProfile(AbstractUser):
     collection_nums = models.IntegerField(verbose_name="总收藏量", default=0)
     download_nums = models.IntegerField(verbose_name="总被下载量", default=0)
     desc = models.CharField(verbose_name="个人简介", max_length=150, blank=True)
+    if_cer = models.BooleanField(verbose_name="是否认证", default=False)
+    org_name = models.CharField(verbose_name="组织名字", default="", blank=True, max_length=50)
     id_card = models.ImageField(upload_to="id_cards/%Y/%m", null=True, blank=True, storage=ImageStorage(),
                                 verbose_name="身份证图片")
     add_time = models.DateField(default=datetime.now, verbose_name="添加时间")
@@ -60,6 +62,7 @@ class Folder(models.Model):
     add_time = models.DateField(default=datetime.now, verbose_name="添加时间")
     desc = models.CharField(max_length=150, verbose_name="描述", blank=True)
     nums = models.IntegerField(default=0, verbose_name="数量")
+    update_time = models.DateField(default=datetime.now, verbose_name="更新时间")
 
     class Meta:
         verbose_name = '用户收藏夹'
@@ -83,3 +86,24 @@ class UserMessage(models.Model):
 
     def __str__(self):
         return self.message
+
+
+class Org(models.Model):
+    # 组织
+    image = models.ImageField(upload_to="org/%Y/%m", null=True, blank=True, storage=ImageStorage(),
+                              verbose_name="认证图片")
+    teacher = models.CharField(max_length=20, verbose_name="指导老师")
+    name = models.CharField(max_length=50, verbose_name="组织名称")
+    user = models.ForeignKey(UserProfile, models.CASCADE, verbose_name="关联用户")
+    status = models.CharField(max_length=5, default="1", verbose_name="认证状态",
+                              choices=(("1", "等待认证"),
+                                       ("2", "通过认证"),
+                                       ("3", "未通过认证")))
+    add_time = models.DateTimeField(default=datetime.now, verbose_name=u"添加时间")
+
+    class Meta:
+        verbose_name = "组织认证"
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return self.name

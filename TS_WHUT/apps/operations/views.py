@@ -12,20 +12,29 @@ from django.contrib.auth.hashers import make_password
 from django.http import HttpResponse, HttpResponseRedirect
 from rest_framework.pagination import PageNumberPagination
 import json
-# from rest_framework.views import APIView
-# from django.http import StreamingHttpResponse
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle  # 限速
 
 from .serializer import (LikeSerializer, FollowSerializer, CollectSerializer, DownloadSerializer, CommentLikeSerialzer,
                          LikeListSerializer, DownloadListSerializer, FollowListSerializer, FanListSerializer,
-                         ApplicationListSerializer, ApplicationCreateSerializer, ApplicationUpdateSerializer)
+                         ApplicationListSerializer, ApplicationCreateSerializer, ApplicationUpdateSerializer,
+                         ReportSerializer)
 from .models import LikeShip, Follow, UserFolderImage, DownloadShip, CommentLike, Application
-# from images.models import ImageModel
 from users.models import EmailVerifyRecord, UserMessage
 from images.models import ImageModel
-from utils.send_email import send_register_email
-# from utils.read_file import readFile
+from my_utils.send_email import send_register_email
 
 User = get_user_model()
+
+
+class ReportViewset(mixins.CreateModelMixin, viewsets.GenericViewSet):
+    """
+    create:
+        举报评论
+    """
+    throttle_classes = (UserRateThrottle, AnonRateThrottle)
+    authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
+    permission_classes = (IsAuthenticated,)
+    serializer_class = ReportSerializer
 
 
 class FollowUserViewset(mixins.ListModelMixin, viewsets.GenericViewSet):
@@ -33,6 +42,7 @@ class FollowUserViewset(mixins.ListModelMixin, viewsets.GenericViewSet):
     list:
         获取全部关注用户
     """
+    throttle_classes = (UserRateThrottle, AnonRateThrottle)
     serializer_class = FollowListSerializer
     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
     permission_classes = (IsAuthenticated,)
@@ -46,6 +56,7 @@ class FanUserViewset(mixins.ListModelMixin, viewsets.GenericViewSet):
     list:
         获取全部粉丝
     """
+    throttle_classes = (UserRateThrottle, AnonRateThrottle)
     serializer_class = FanListSerializer
     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
     permission_classes = (IsAuthenticated,)
@@ -61,6 +72,7 @@ class CollectViewset(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets
     destroy:
         从收藏夹删除图片
     """
+    throttle_classes = (UserRateThrottle, AnonRateThrottle)
     serializer_class = CollectSerializer
     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
     permission_classes = (IsAuthenticated,)
@@ -79,6 +91,7 @@ class LikeViewset(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.Destroy
     destroy:
         取消点赞一张图片
     """
+    throttle_classes = (UserRateThrottle, AnonRateThrottle)
     serializer_class = LikeSerializer
     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
     permission_classes = (IsAuthenticated,)
@@ -100,6 +113,7 @@ class FollowViewset(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.
     destroy:
         取消关注
     """
+    throttle_classes = (UserRateThrottle, AnonRateThrottle)
     serializer_class = FollowSerializer
     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
     permission_classes = (IsAuthenticated,)
@@ -133,6 +147,7 @@ class DownloadViewset(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.G
     list:
         获取用户下载图片
     """
+    throttle_classes = (UserRateThrottle, AnonRateThrottle)
     serializer_class = DownloadSerializer
     pagination_class = DownloadPagination
     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
@@ -169,6 +184,7 @@ class CommentLikeViewset(mixins.CreateModelMixin, mixins.DestroyModelMixin, view
     destroy:
         取消点赞评论
     """
+    throttle_classes = (UserRateThrottle, AnonRateThrottle)
     serializer_class = CommentLikeSerialzer
     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
     permission_classes = (IsAuthenticated,)
@@ -186,6 +202,7 @@ class ApplicationViewset(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.
     update:
         修改申请状态
     """
+    throttle_classes = (UserRateThrottle, AnonRateThrottle)
     serializer_class = ApplicationListSerializer
     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
     permission_classes = (IsAuthenticated,)
@@ -214,8 +231,6 @@ class ApplicationViewset(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.
         self.perform_update(serializer)
 
         if getattr(instance, '_prefetched_objects_cache', None):
-            # If 'prefetch_related' has been applied to a queryset, we need to
-            # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
 
         serializer.data['status'] = int(serializer.data['status'])
@@ -243,37 +258,6 @@ class ApplicationViewset(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.
     def get_queryset(self):
         return Application.objects.filter(user=self.request.user)
 
-# 以数据流的形式返回
-# class DownloadImageViewset(APIView):
-#     """
-#     list:
-#         下载原图
-#     """
-#     # serializer_class = DownloadSerializer
-#     authentication_classes = (JSONWebTokenAuthentication, SessionAuthentication)
-#     permission_classes = (IsAuthenticated,)
-#
-#     def get(self, request, *args, **kwargs):
-#         image_id = int(request.GET.get("image"))
-#         if not image_id:
-#             response = Response({"error": "参数错误"})
-#             response.status_code = 400
-#             return response
-#         image = ImageModel.objects.get(id=image_id)
-#         if not image.if_active:
-#             response = Response({"error": "图片未审查"})
-#             response.status_code = 404
-#             return response
-#
-#         DownloadShip(user=request.user, image=image).save()
-#
-#         the_file_name = image.image.url
-#         filename = 'D:/code/Project/TS_WHUT' + image.image.url
-#         response = StreamingHttpResponse(readFile(filename))
-#         response['Content-Type'] = 'application/octet-stream'
-#         response['Content-Disposition'] = 'attachment;filename="{0}"'.format(the_file_name)
-#         return response
-
 
 class ActiveUserView(View):
     """
@@ -285,11 +269,11 @@ class ActiveUserView(View):
             for record in all_records:
                 # 得到一个用户信息邮箱与传来的邮箱验证邮箱相同的用户信息实例
                 user = User.objects.get(email=record.send_email)
-                if not user.if_active:
-                    user.if_active = True
+                if not user.is_active:
+                    user.is_active = True
                     user.save()
                     record.delete()
-                    return render(request, 'index.html')
+                    return HttpResponseRedirect('/tslg/')
         return render(request, "active_fail.html", {"error": "激活失败: 激活链接失效!"})
 
 
@@ -349,7 +333,9 @@ class ChangePasswordView(View):
         if not user_id:
             return render(request, "active_fail.html", {"error": "验证错误: 页面已失效!"})
         user = User.objects.filter(id=int(user_id))[0]
-        if len(password1) < 6 or password1 != password2:
+        if len(password1) < 6:
+            return render(request, "password_reset.html", {"id": str(user.id), "error": "密码长度最少6位!"})
+        if password1 != password2:
             return render(request, "password_reset.html", {"id": str(user.id), "error": "密码不一致!"})
         user.password = make_password(password1)
         user.save()
@@ -358,8 +344,11 @@ class ChangePasswordView(View):
 
 class UserImageView(View):
     def get(self, request, user_id):
+        """
+        用户签约审查界面的跳转
+        """
         if request.user.is_authenticated and request.user.is_staff:
-            images = ImageModel.objects.filter(user_id=user_id)
+            images = ImageModel.objects.filter(user_id=user_id, if_active=True)
             target_user = User.objects.get(id=user_id)
             return render(request, 'images.html', {
                 "user": target_user,
@@ -369,6 +358,9 @@ class UserImageView(View):
 
 class CheckView(View):
     def post(self, request):
+        """
+        提交审查的结果, 结果为通过或者不通过
+        """
         res = request.POST.get('radio')
         user_id = request.POST.get('user')
         ship = Application.objects.get(user_id=int(user_id))

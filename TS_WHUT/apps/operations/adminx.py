@@ -1,6 +1,6 @@
 import xadmin
 
-from .models import Follow, LikeShip, DownloadShip, CommentLike, UserFolderImage, Application
+from .models import Follow, LikeShip, DownloadShip, CommentLike, UserFolderImage, Application, Report
 
 
 class FollowAdmin(object):
@@ -75,9 +75,23 @@ class ApplicationAdmin(object):
             self.readonly_fields = []
         return self.readonly_fields
 
+
+class ReportAdmin(object):
+    list_display = ('user', 'status', 'reason', 'content', 'add_time')
+    list_filter = ('status', 'reason', 'add_time')
+    readonly_fields = ('user', 'add_time')
+    model_icon = 'fa fa-flag'
+    refresh_times = (5, 10)
+
+    def get_readonly_fields(self):
+        if self.user.is_superuser:
+            self.readonly_fields = []
+        return self.readonly_fields
+
 xadmin.site.register(Follow, FollowAdmin)
 xadmin.site.register(LikeShip, LikeShipAdmin)
 xadmin.site.register(DownloadShip, DownloadShipAdmin)
 xadmin.site.register(CommentLike, CommentLikeAdmin)
 xadmin.site.register(UserFolderImage, UserFolderImageAdmin)
 xadmin.site.register(Application, ApplicationAdmin)
+xadmin.site.register(Report, ReportAdmin)

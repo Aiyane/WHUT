@@ -1,15 +1,23 @@
-from django.db.models.signals import post_save, pre_delete, pre_save
+from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
-from .models import LikeShip, DownloadShip, Follow, UserFolderImage, CommentLike, Application
+from datetime import datetime
+from .models import LikeShip, DownloadShip, Follow, UserFolderImage, CommentLike, Application, Report
 
 
-@receiver(pre_save, sender=Application)
-def add_url(sender, instance=None, created=False, **kwargs):
+@receiver(post_save, sender=Report)
+def create_report(sender, instance=None, created=False, **kwargs):
     """
-    签约前
+    当举报评论时和举报状态改变时 
     """
-    if instance.status == '2':
-        instance.url = 'http://192.168.1.101:8000/user_image/' + str(instance.user.id) + '/'
+    # 评论举报数量+1
+    if created:
+        comment = instance.comment
+        comment.num += 1
+        comment.save()
+    # 举报通过, 评论删除
+    elif instance.status == '2':
+        comment = instance.comment
+        comment.delete()
 
 
 @receiver(post_save, sender=Application)
@@ -31,7 +39,7 @@ def change_if_sign(sender, instance=None, created=False, **kwargs):
 @receiver(post_save, sender=CommentLike)
 def create_comment_like_num(sender, instance=None, created=False, **kwargs):
     """
-    当点赞图片动作发生
+    当点赞评论动作发生
     """
     if created:
         # 评论点赞数加1
@@ -41,9 +49,9 @@ def create_comment_like_num(sender, instance=None, created=False, **kwargs):
 
 
 @receiver(pre_delete, sender=CommentLike)
-def delete_collect_num(sender, instance=None, **kwargs):
+def delete_comment_like_num(sender, instance=None, **kwargs):
     """
-    当取消点赞图片动作发生
+    当取消点赞评论动作发生
     """
     # 评论点赞数减1
     comment = instance.comment
@@ -65,9 +73,10 @@ def create_collect_num(sender, instance=None, created=False, **kwargs):
         user = image.user
         user.collection_nums += 1
         user.save()
-        # 收藏夹图片数量加1
+        # 收藏夹图片数量加1,更新时间变化
         folder = instance.folder
         folder.nums += 1
+        folder.update_time = datetime.now()
         folder.save()
 
 
@@ -84,9 +93,10 @@ def delete_collect_num(sender, instance=None, **kwargs):
     user = image.user
     user.collection_nums -= 1
     user.save()
-    # 收藏夹图片数量减1
+    # 收藏夹图片数量减1,更新时间变化
     folder = instance.folder
     folder.nums -= 1
+    folder.update_time = datetime.now()
     folder.save()
 
 

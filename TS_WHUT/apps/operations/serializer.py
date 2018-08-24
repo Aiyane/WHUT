@@ -1,9 +1,20 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 
-from .models import LikeShip, DownloadShip, Follow, UserFolderImage, CommentLike, Application
+from .models import LikeShip, DownloadShip, Follow, UserFolderImage, CommentLike, Application, Report
 from images.serializer import ImageSerializer
 from images.serializer import UserBrifSerializer
+
+
+class ReportSerializer(serializers.ModelSerializer):
+    def validate(self, attrs):
+        if attrs['user'] != self.context['request'].user:
+            raise serializers.ValidationError('没有权限')
+        return attrs
+
+    class Meta:
+        model = Report
+        fields = ('user', 'comment', 'content', 'reason')
 
 
 class CollectSerializer(serializers.ModelSerializer):
@@ -69,7 +80,7 @@ class DownloadListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DownloadShip
-        fields = ('user', 'image', 'id')
+        fields = ('user', 'image', 'id', 'add_time')
 
 
 class FollowSerializer(serializers.ModelSerializer):
@@ -118,6 +129,14 @@ class CommentLikeSerialzer(serializers.ModelSerializer):
     class Meta:
         model = CommentLike
         fields = ('user', 'comment', 'id')
+
+    validators = [
+        UniqueTogetherValidator(
+            queryset=CommentLike.objects.all(),
+            fields=('user', 'comment'),
+            message="已经点赞"
+        )
+    ]
 
 
 class ApplicationListSerializer(serializers.ModelSerializer):

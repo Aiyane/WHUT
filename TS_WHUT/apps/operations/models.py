@@ -67,13 +67,18 @@ class UserFolderImage(models.Model):
 class Application(models.Model):
     # 申请签约
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="申请人")
-    status = models.CharField(max_length=11, default="contract", verbose_name="申请签约状态",
+    status = models.CharField(max_length=11, default="2", verbose_name="申请签约状态",
                               choices=(("1", "用户同意合同"),
                                        ("2", "等待审核"),
                                        ("4", "未通过审核"),
                                        ("3", "已完成")))
     add_time = models.DateField(default=datetime.now, verbose_name="添加时间")
-    url = models.CharField(null=True, blank=True, verbose_name="作品集链接", max_length=100)
+
+    def url(self):
+        from django.utils.safestring import mark_safe
+        return mark_safe("<a href='/user_image/" + str(self.user.id) + "/'>跳转</>")
+
+    url.short_description = "审查链接"
 
     class Meta:
         verbose_name = "申请签约"
@@ -81,3 +86,20 @@ class Application(models.Model):
 
     def __str__(self):
         return str(self.id)
+
+
+class Report(models.Model):
+    # 举报评论
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, verbose_name="举报人", null=True)
+    comment = models.ForeignKey(Comment, on_delete=models.SET_NULL, verbose_name="评论", null=True)
+    content = models.CharField(max_length=200, verbose_name="评论内容")
+    reason = models.CharField(max_length=150, verbose_name="举报理由")
+    status = models.CharField(max_length=11, default="1", verbose_name="审核状态",
+                              choices=(("1", "等待审核"),
+                                       ("2", "举报通过"),
+                                       ("3", "举报不通过")))
+    add_time = models.DateField(default=datetime.now, verbose_name="举报时间")
+
+    class Meta:
+        verbose_name = "举报评论"
+        verbose_name_plural = verbose_name

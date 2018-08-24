@@ -22,13 +22,7 @@
   {% for row in results %}
     <tr>{% for o in row %}
       <td>
-      {% if o.label|first == 'h' %}
-          <a href="{{ o.label }}">
-          {{ o.label }}
-          </a>
-      {% else %}
-          {{ o.label }}
-      {% endif %}
+      {{ o.label }}
       </td>
     {% endfor %}
     </tr>

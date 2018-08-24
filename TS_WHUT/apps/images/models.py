@@ -2,8 +2,9 @@ from datetime import datetime
 from django.db import models
 from django.contrib.auth import get_user_model
 from easy_thumbnails.fields import ThumbnailerImageField
+from DjangoUeditor.models import UEditorField
 
-from utils.storage import ImageStorage
+from my_utils.storage import ImageStorage
 
 User = get_user_model()
 
@@ -16,6 +17,8 @@ class BannerModel(models.Model):
     if_show = models.BooleanField(default=False, verbose_name="是否显示")
     index = models.IntegerField(default=100, verbose_name="顺序")
     add_time = models.DateField(default=datetime.now, verbose_name="添加时间")
+    desc = UEditorField(verbose_name="活动详情", imagePath="banner/images/", width=1000, height=300,
+                        filePath="banner/files/", default='')
 
     class Meta:
         verbose_name = "轮播图"
@@ -48,11 +51,42 @@ class ImageModel(models.Model):
         return self.name
 
 
+class Groups(models.Model):
+    # 图片大类
+    name = models.CharField(verbose_name="大类名称", max_length=20)
+    add_time = models.DateField(default=datetime.now, verbose_name="添加时间")
+    if_show = models.BooleanField(default=False, verbose_name="是否展示")
+
+    class Meta:
+        verbose_name = "图片大类"
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return self.name
+
+
+class SmallGroups(models.Model):
+    # 图片小类
+    name = models.CharField(verbose_name="小类名称", max_length=20)
+    add_time = models.DateField(default=datetime.now, verbose_name="添加时间")
+    group = models.ForeignKey(Groups, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="所属大类",
+                              related_name="groups")
+
+    class Meta:
+        verbose_name = "图片小类"
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return self.name
+
+
 class GroupImage(models.Model):
-    # 图片种类
+    # 小类与图片关联
     name = models.CharField(verbose_name="图片分类", max_length=20)
     add_time = models.DateField(default=datetime.now, verbose_name="添加时间")
     image = models.ForeignKey(ImageModel, models.CASCADE, verbose_name="图片")
+    group = models.ForeignKey(SmallGroups, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="类别",
+                              related_name="images")
 
     class Meta:
         verbose_name = "图片种类"
@@ -69,8 +103,18 @@ class Comment(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="用户", related_name="speaker")
     reply = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="回复人", related_name="listen")
     content = models.CharField(max_length=200, verbose_name="评论")
+    floor = models.IntegerField(verbose_name="楼数", default=0)
+    is_add_info = models.BooleanField(verbose_name="是否回复", default=False)
     like = models.IntegerField(default=0, verbose_name="点赞数")
+    num = models.IntegerField(default=0, verbose_name="投诉数量")
 
     class Meta:
         verbose_name = "图片评论"
         verbose_name_plural = verbose_name
+
+
+class SearchWord(models.Model):
+    # 被搜索词
+    word = models.CharField(max_length=50, verbose_name="搜索词")
+    add_time = models.DateField(default=datetime.now, verbose_name="添加时间")
+    num = models.IntegerField(default=1, verbose_name="搜索次数")

@@ -49,7 +49,7 @@ def send_register_email(email, send_type="register"):
 
     if send_type == "register":
         email_title = "图说理工网用户激活链接"
-        email_body = "请点击下面的链接激活你的账号：http://10.138.207.222:8000/active/{0}".format(code)
+        email_body = "请点击下面的链接激活你的账号：http://111.231.230.54/active/{0}".format(code)
 
         send_status = send_mail(email_title, email_body, EMAIL_FROM, [email])
         if send_status:
@@ -57,7 +57,7 @@ def send_register_email(email, send_type="register"):
 
     elif send_type == "forget":
         email_title = "图说理工网网密码重置链接"
-        email_body = "请点击下面的链接重置你的密码：http://10.138.207.222:8000/reset/{0}".format(code)
+        email_body = "请点击下面的链接重置你的密码：http://111.231.230.54/reset/{0}".format(code)
 
         send_status = send_mail(email_title, email_body, EMAIL_FROM, [email])
         if send_status:
